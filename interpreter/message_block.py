@@ -9,7 +9,7 @@ import re
 class MessageBlock:
 
   def __init__(self):
-    self.live = Live(auto_refresh=False, console=Console())
+    self.live = Live(auto_refresh=False, refresh_per_second=8, console=Console())
     self.live.start()
     self.content = ""
 

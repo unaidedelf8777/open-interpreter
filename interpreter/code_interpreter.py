@@ -9,7 +9,7 @@ The code here has duplication. It has imports in weird places. It has been spagh
 
 In my opinion **this is critical** to keep up with the pace of demand for this project.
 
-At the same time, I plan on pushing a significant re-factor of `interpreter.py` and `code_interpreter.py` ~ September 11th.
+At the same time, I plan on pushing a significant re-factor of `interpreter.py` and `code_interpreter.py` ~ September 16th.
 
 After the re-factor, Open Interpreter's source code will be much simpler, and much more fun to dive into.
 
@@ -18,17 +18,19 @@ Especially if you have ideas and **EXCITEMENT** about the future of this project
 - killian
 """
 
+import ast
+import os
+import platform
+import re
 import subprocess
-import webbrowser
+import sys
 import tempfile
 import threading
-import traceback
-import platform
 import time
-import ast
-import sys
-import os
-import re
+import traceback
+import webbrowser
+
+from .container_utils import DockerProcWrapper
 
 
 def run_html(html_content):
@@ -37,99 +39,113 @@ def run_html(html_content):
         f.write(html_content.encode())
 
     # Open the HTML file with the default web browser
-    webbrowser.open('file://' + os.path.realpath(f.name))
+    webbrowser.open("file://" + os.path.realpath(f.name))
 
     return f"Saved to {os.path.realpath(f.name)} and opened with the user's default web browser."
 
 
 # Mapping of languages to their start, run, and print commands
 language_map = {
-  "python": {
-    # Python is run from this interpreter with sys.executable
-    # in interactive, quiet, and unbuffered mode
-    "start_cmd": sys.executable + " -i -q -u",
-    "print_cmd": 'print("{}")'
-  },
-  "R": {
-    # R is run from this interpreter with R executable
-    # in interactive, quiet, and unbuffered mode
-    "start_cmd": "R -q --vanilla",
-    "print_cmd": 'print("{}")'
-  },
-  "shell": {
-    # On Windows, the shell start command is `cmd.exe`
-    # On Unix, it should be the SHELL environment variable (defaults to 'bash' if not set)
-    "start_cmd": 'cmd.exe' if platform.system() == 'Windows' else os.environ.get('SHELL', 'bash'),
-    "print_cmd": 'echo "{}"'
-  },
-  "javascript": {
-    "start_cmd": "node -i",
-    "print_cmd": 'console.log("{}")'
-  },
-  "applescript": {
-    # Starts from shell, whatever the user's preference (defaults to '/bin/zsh')
-    # (We'll prepend "osascript -e" every time, not once at the start, so we want an empty shell)
-    "start_cmd": os.environ.get('SHELL', '/bin/zsh'),
-    "print_cmd": 'log "{}"'
-  },
-  "html": {
-    "open_subprocess": False,
-    "run_function": run_html,
-  }
-}
+    "python": {
+        # Python is run from this interpreter with sys.executable
+        # in interactive, quiet, and unbuffered mode
+        "start_cmd": sys.executable + " -i -q -u",
+        "print_cmd": 'print("{}")',
+    },
+    "R": {
+        # R is run from this interpreter with R executable
+        # in interactive, quiet, and unbuffered mode
+        "start_cmd": "R -q --vanilla",
+        "print_cmd": 'print("{}")',
+    },
+    "shell": {
+        # On Windows, the shell start command is `cmd.exe`
+        # On Unix, it should be the SHELL environment variable (defaults to 'bash' if not set)
+        "start_cmd": "cmd.exe"
+        if platform.system() == "Windows"
+        else os.environ.get("SHELL", "bash"),
+        "print_cmd": 'echo "{}"',
+    },
+    "javascript": {"start_cmd": "node -i", "print_cmd": 'console.log("{}")'},
+    "applescript": {
+        # Starts from shell, whatever the user's preference (defaults to '/bin/zsh')
+        # (We'll prepend "osascript -e" every time, not once at the start, so we want an empty shell)
+        "start_cmd": os.environ.get("SHELL", "/bin/zsh"),
+        "print_cmd": 'log "{}"',
+    },
+    "html": {
+        "open_subprocess": False,
+        "run_function": run_html,
+},}
+
 
 # Get forbidden_commands (disabled)
-"""
-with open("interpreter/forbidden_commands.json", "r") as f:
-  forbidden_commands = json.load(f)
-"""
 
 
 class CodeInterpreter:
+
   """
   Code Interpreters display and run code in different languages.
 
   They can control code blocks on the terminal, then be executed to produce an output which will be displayed in real-time.
   """
 
-  def __init__(self, language, debug_mode):
-    self.language = language
-    self.proc = None
-    self.active_line = None
-    self.debug_mode = debug_mode
+  def __init__(self, language, debug_mode, contain, session_id):
+      self.language = language
+      self.proc = None
+      self.active_line = None
+      self.debug_mode = debug_mode
+      self.contain = contain
+      self.session_id = session_id
 
   def start_process(self):
-    # Get the start_cmd for the selected language
-    start_cmd = language_map[self.language]["start_cmd"]
+      # Get the start_cmd for the selected language
+      start_cmd = language_map[self.language]["start_cmd"]
 
-    # Use the appropriate start_cmd to execute the code
-    self.proc = subprocess.Popen(start_cmd.split(),
-                                 stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 text=True,
-                                 bufsize=0)
+      if self.contain:
+          if self.language == "python":
+              start_cmd = "python3 -i -q -u"  ## the docker container does not have the same path to the python executable as us.
+          self.proc = DockerProcWrapper(
+              command=start_cmd,
+              session_path=os.path.join(
+                  os.path.abspath(os.path.dirname(__file__)), "sessions", self.session_id
+          ))
 
-    # Start watching ^ its `stdout` and `stderr` streams
-    threading.Thread(target=self.save_and_display_stream,
-                     args=(self.proc.stdout, False), # Passes False to is_error_stream
-                     daemon=True).start()
-    threading.Thread(target=self.save_and_display_stream,
-                     args=(self.proc.stderr, True), # Passes True to is_error_stream
-                     daemon=True).start()
+      else:
+          # Use the appropriate start_cmd to execute the code
+          self.proc = subprocess.Popen(
+              start_cmd.split(),
+              stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE,
+              text=True,
+              bufsize=0,
+          )
+
+      # Start watching ^ its `stdout` and `stderr` streams
+      threading.Thread(
+          target=self.save_and_display_stream,
+          args=(self.proc.stdout, False),  # Passes False to is_error_stream
+          daemon=True,
+      ).start()
+      threading.Thread(
+          target=self.save_and_display_stream,
+          args=(self.proc.stderr, True),  # Passes True to is_error_stream
+          daemon=True,
+      ).start()
 
   def update_active_block(self):
-      """
-      This will also truncate the output,
-      which we need to do every time we update the active block.
-      """
-      # Strip then truncate the output if necessary
-      self.output = truncate_output(self.output)
+    """
+    This will also truncate the output,
+    which we need to do every time we update the active block.
+    """
+    # Strip then truncate the output if necessary
+    self.output = truncate_output(self.output)
 
-      # Display it
-      self.active_block.active_line = self.active_line
-      self.active_block.output = self.output
-      self.active_block.refresh()
+    # Display it
+    self.active_block.active_line = self.active_line
+    self.active_block.output = self.output
+    self.active_block.refresh()
 
   def run(self):
     """
@@ -270,6 +286,14 @@ class CodeInterpreter:
     3) It really struggles with multiline stuff, so I've disabled that (but we really should fix and restore).
     """
 
+    # Doesn't work on Windows
+    if platform.system() == 'Windows':
+       return code
+    
+    # Doesn't work with R
+    if self.language == 'R':
+       return code
+
     if self.language == "python":
       return add_active_line_prints_to_python(code)
 
@@ -318,7 +342,7 @@ class CodeInterpreter:
     for line in iter(stream.readline, ''):
 
       if self.debug_mode:
-        print("Recieved output line:")
+        print("Received output line:")
         print(line)
         print("---")
 
@@ -351,6 +375,10 @@ class CodeInterpreter:
       if line.startswith("ACTIVE_LINE:"):
         self.active_line = int(line.split(":")[1])
       elif "END_OF_EXECUTION" in line:
+        self.done.set()
+        self.active_line = None
+      elif self.language == "R" and "Execution halted" in line:
+        # We need to figure out how to wrap R code in a try: except: block so we don't have to do this.
         self.done.set()
         self.active_line = None
       elif is_error_stream and "KeyboardInterrupt" in line:
