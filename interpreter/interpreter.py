@@ -49,6 +49,12 @@ except:
   # Sometimes this doesn't work (https://stackoverflow.com/questions/10313765/simple-swig-python-example-in-vs2008-import-error-internal-pyreadline-erro)
   pass
 
+try:
+  import readline
+except:
+  # Sometimes this doesn't work (https://stackoverflow.com/questions/10313765/simple-swig-python-example-in-vs2008-import-error-internal-pyreadline-erro)
+  pass
+
 # Function schema for gpt-4
 function_schema = {
   "name": "run_code",
@@ -972,3 +978,4 @@ class Interpreter:
 
   def _print_welcome_message(self):
     print("", Markdown("●"), "", Markdown(f"\nWelcome to **Open Interpreter**.\n"), "")
+
