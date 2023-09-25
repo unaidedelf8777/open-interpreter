@@ -51,6 +51,9 @@ class Interpreter:
         config = get_config()
         self.__dict__.update(config)
 
+        # Container options
+        self.use_containers = False
+
         # Check for update
         if not self.local:
             # This should actually be pushed into the utility

@@ -72,6 +72,12 @@ arguments = [
         "nickname": "ak",
         "help_text": "optionally set the API key for your llm calls (this will override environment variables)",
         "type": str
+    },
+    {
+        "name": "use_containers",
+        "nickname": "uc",
+        "help_text": "optionally use a Docker Container for the interpreters code execution. this will seperate execution from your main computer. this also allows execution on a remote server via the 'DOCKER_HOST' environment variable and the dockerengine api.",
+        "type": bool
     }
 ]
 

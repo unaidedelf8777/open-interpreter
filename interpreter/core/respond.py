@@ -25,7 +25,7 @@ def respond(interpreter):
             try:
                 system_message += "\n\n" + get_relevant_procedures(interpreter.messages[-2:])
             except:
-                # This can fail for odd SLL reasons. It's not necessary, so we can continue
+                # This can fail for odd SSL reasons. It's not necessary, so we can continue
                 pass
         
         # Add user info to system_message, like OS, CWD, etc
@@ -101,7 +101,10 @@ def respond(interpreter):
                 # Get a code interpreter to run it
                 language = interpreter.messages[-1]["language"]
                 if language not in interpreter._code_interpreters:
-                    interpreter._code_interpreters[language] = create_code_interpreter(language)
+                    if interpreter.use_containers:
+                        interpreter._code_interpreters[language] = create_code_interpreter(language, use_containers=True)
+                    else:
+                        interpreter._code_interpreters[language] = create_code_interpreter(language)
                 code_interpreter = interpreter._code_interpreters[language]
 
                 # Yield a message, such that the user can stop code execution if they want to

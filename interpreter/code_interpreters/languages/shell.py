@@ -4,8 +4,8 @@ import ast
 import os
 
 class Shell(SubprocessCodeInterpreter):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         # Determine the start command based on the platform
         if platform.system() == 'Windows':
@@ -63,7 +63,7 @@ def wrap_in_trap(code):
     Wrap Bash code with a trap to catch errors and display them.
     """
     trap_code = """
-trap 'echo "An error occurred on line $LINENO"; exit' ERR
-set -E
-"""
+    trap 'echo "An error occurred on line $LINENO"; exit' ERR
+    set -E
+    """
     return trap_code + code

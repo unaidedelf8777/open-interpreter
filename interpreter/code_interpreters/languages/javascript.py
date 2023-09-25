@@ -2,8 +2,8 @@ from ..subprocess_code_interpreter import SubprocessCodeInterpreter
 import re
 
 class JavaScript(SubprocessCodeInterpreter):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.start_cmd = "node -i"
         
     def preprocess_code(self, code):
@@ -50,12 +50,12 @@ def preprocess_javascript(code):
 
     # Wrap in a try-catch and add end of execution marker
     processed_code = f"""
-try {{
-{processed_code}
-}} catch (e) {{
-    console.log(e);
-}}
-console.log("## end_of_execution ##");
-"""
+    try {{
+    {processed_code}
+    }} catch (e) {{
+        console.log(e);
+    }}
+    console.log("## end_of_execution ##");
+    """
 
     return processed_code
