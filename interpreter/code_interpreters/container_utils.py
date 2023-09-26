@@ -44,8 +44,8 @@ def build_docker_images(
     try:
         client = DockerClient.from_env()
     except DockerException:
-        print("ERROR: Could not connect to Docker daemon. Is Docker Engine installed and running?")
-        print(
+        Print("ERROR: Could not connect to Docker daemon. Is Docker Engine installed and running?")
+        Print(
             "\nFor information on Docker installation, visit: https://docs.docker.com/engine/install/"
         )
         return
@@ -59,7 +59,7 @@ def build_docker_images(
     requirements_path = os.path.join(dockerfile_dir, requirements_name)
 
     if not os.path.exists(dockerfile_path) or not os.path.exists(requirements_path):
-        print("ERROR: Dockerfile or requirements.txt not found. Did you delete or rename them?")
+        Print("ERROR: Dockerfile or requirements.txt not found. Did you delete or rename them?")
         raise RuntimeError(
             "No container Dockerfiles or requirements.txt found. Make sure they are in the dockerfiles/ subdir of the module."
         )
@@ -77,10 +77,10 @@ def build_docker_images(
     if current_hash == original_hash:
         images = client.images.list(name=image_name, all=True)
         if not images:
-            print("Downloading default image from Docker Hub, please wait...")
+            Print("Downloading default image from Docker Hub, please wait...")
             client.images.pull("unaidedelf/openinterpreter-runtime-container", tag="latest")
     elif current_hash != previous_hash:
-        print("Dockerfile or requirements.txt has changed. Building container...")
+        Print("Dockerfile or requirements.txt has changed. Building container...")
 
         try:
             result = subprocess.run([
@@ -97,8 +97,8 @@ def build_docker_images(
             if result.returncode != 0:
                 # Extract the error message from Docker's output
                 error_message = result.stderr.strip().split("\n")[-1]
-                print("Docker Build Error: ", error_message)
-                print(
+                Print("Docker Build Error: ", error_message)
+                Print(
                     "Building Docker image failed. Please review the error message above and resolve the issue."
                 )
             else:
@@ -107,14 +107,14 @@ def build_docker_images(
                 with open(hash_file_path, "w", encoding="utf-8") as f:
                     json.dump(stored_hashes, f)
         except FileNotFoundError:
-            print("ERROR: The 'docker' command was not found on your system.")
-            print(
+            Print("ERROR: The 'docker' command was not found on your system.")
+            Print(
                 "Please ensure Docker Engine is installed and the 'docker' command is available in your PATH."
             )
-            print(
+            Print(
                 "For information on Docker installation, visit: https://docs.docker.com/engine/install/"
             )
-            print("If Docker is installed, try starting a new terminal session.")
+            Print("If Docker is installed, try starting a new terminal session.")
 
 
 class DockerStreamWrapper:
