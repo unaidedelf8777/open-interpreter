@@ -31,14 +31,15 @@ RUN awk '/\[python\]/, /^\s*$/' /tmp/requirements.txt | grep -v '^\[python\]' > 
 # Create an initial empty package.json
 RUN echo '{}' > /tmp/package.json
 
-
-# Populate package.json with dependencies from node_requirements.txt
 RUN awk '/\[node\]/, /^\s*$/' /tmp/requirements.txt | grep -v '^\[node\]' > /tmp/node_requirements.txt && \
     while read -r package; do \
         name=$(echo $package | grep -Eo "^[a-zA-Z0-9_-]+") && \
-        version=$(echo $package | grep -Eo "[>=<]+[0-9.]+") && \
+        version=$(echo $package | grep -Eo "[>=<]+[0-9.]+"); \
+        if [ -z "$version" ]; then version="*"; fi && \
         jq ".dependencies.\"$name\" = \"$version\"" /tmp/package.json > /tmp/package_temp.json && mv /tmp/package_temp.json /tmp/package.json; \
     done < /tmp/node_requirements.txt
+
+
 
 # Install NodeJS packages
 RUN npm install --save --yes --no-package-lock --prefix /tmp
@@ -50,10 +51,21 @@ RUN awk '/\[r\]/,/^\s*$/' /tmp/requirements.txt | grep -v '^\[r\]' > /tmp/r_requ
     done < /tmp/r_requirements.txt
 
 # Install NodeJS packages
-RUN npm install --save --yes --no-package-lock --prefix /tmp
 
 # Remove temporary files
 RUN rm /tmp/package.json /tmp/node_requirements.txt /tmp/python_requirements.txt /tmp/r_requirements.txt
+
+# Create user with sudo only in the container for security.
+RUN useradd docker && echo "docker:docker" | chpasswd
+RUN mkdir -p /mnt/data && chown -R docker:docker /mnt/data
+
+RUN apt-get update && apt-get install -y sudo
+
+RUN usermod -aG sudo docker
+
+RUN echo "docker ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER docker
 
 # Set work directory
 WORKDIR /mnt/data

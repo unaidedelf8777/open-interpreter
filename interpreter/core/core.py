@@ -15,6 +15,7 @@ from datetime import datetime
 import json
 from ..utils.check_for_update import check_for_update
 from ..utils.display_markdown_message import display_markdown_message
+from ..code_interpreters.container_utils import build_docker_images
 
 class Interpreter:
     def cli(self):
@@ -59,8 +60,14 @@ class Interpreter:
             # This should actually be pushed into the utility
             if check_for_update():
                 display_markdown_message("> **A new version of Open Interpreter is available.**\n>Please run: `pip install --upgrade open-interpreter`\n\n---")
+        
+
 
     def chat(self, message=None, display=True, stream=False):
+
+        if self.use_containers:
+            build_docker_images() # Build images if needed. does nothing if already built
+
         if stream:
             return self._streaming_chat(message=message, display=display)
         
@@ -112,12 +119,12 @@ class Interpreter:
                 if not os.path.exists(self.conversation_history_path):
                     os.makedirs(self.conversation_history_path)
                 # Write or overwrite the file
-                with open(os.path.join(self.conversation_history_path, self.conversation_filename), 'w') as f:
+                with open(os.path.join(self.conversation_history_path, self.conversation_filename), 'w', encoding="utf-8") as f:
                     json.dump(self.messages, f)
                 
             return
         
-        raise Exception("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
+        raise DisplayError("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
 
     def _respond(self):
         yield from respond(self)

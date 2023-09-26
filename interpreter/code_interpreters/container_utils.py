@@ -2,20 +2,22 @@
 import atexit
 import hashlib
 import json
-import re
 import os
+import re
 import select
 import shutil
 import struct
+import subprocess
 import threading
-import appdirs
-
-# Third-party imports
 import time
 
+
+# Third-party imports
 import docker
 from docker import DockerClient
 from docker.errors import DockerException
+from rich import print as Print
+
 
 def get_files_hash(*file_paths):
     """Return the SHA256 hash of multiple files."""
@@ -26,15 +28,15 @@ def get_files_hash(*file_paths):
                 hasher.update(chunk)
     return hasher.hexdigest()
 
+
 def build_docker_images(
-    dockerfile_dir=os.path.join(appdirs.user_data_dir("Open Interpreter"), "dockerfiles"),
+    dockerfile_dir=os.path.join(os.path.abspath(os.path.dirname(__file__)), "dockerfiles"),
 ):
     """
     Builds a Docker image for the Open Interpreter runtime container if needed.
 
     Args:
         dockerfile_dir (str): The directory containing the Dockerfile and requirements.txt files.
-        save_to_dir (str): The directory to save the Docker image tar file.
 
     Returns:
         None
@@ -42,36 +44,28 @@ def build_docker_images(
     try:
         client = DockerClient.from_env()
     except DockerException:
+        print("ERROR: Could not connect to Docker daemon. Is Docker Engine installed and running?")
         print(
-            "[bold]ERROR: Could not connect to Docker daemon. Is Docker Engine installed and running?[/bold]"
-        )
-        print("\n")
-        print(
-            "For information on docker instalation, visit: https://docs.docker.com/engine/install/"
+            "\nFor information on Docker installation, visit: https://docs.docker.com/engine/install/"
         )
         return
 
     image_name = "openinterpreter-runtime-container"
     hash_file_path = os.path.join(dockerfile_dir, "hash.json")
 
-    # Verify that the specific Dockerfile and requirements.txt exist
     dockerfile_name = "Dockerfile"
     requirements_name = "requirements.txt"
     dockerfile_path = os.path.join(dockerfile_dir, dockerfile_name)
     requirements_path = os.path.join(dockerfile_dir, requirements_name)
 
     if not os.path.exists(dockerfile_path) or not os.path.exists(requirements_path):
-        print(
-            "[bold]ERROR: Dockerfile or requirements.txt not found. Did you delete or rename them?[/bold]"
-        )
+        print("ERROR: Dockerfile or requirements.txt not found. Did you delete or rename them?")
         raise RuntimeError(
             "No container Dockerfiles or requirements.txt found. Make sure they are in the dockerfiles/ subdir of the module."
         )
 
-    # Get hash of the current Dockerfile and requirements.txt
     current_hash = get_files_hash(dockerfile_path, requirements_path)
 
-    # Read the stored hashes if the hash file exists
     stored_hashes = {}
     if os.path.exists(hash_file_path):
         with open(hash_file_path, "rb") as f:
@@ -80,26 +74,47 @@ def build_docker_images(
     original_hash = stored_hashes.get("original_hash")
     previous_hash = stored_hashes.get("last_hash")
 
-    # If the current hash matches the original hash, download from Docker Hub
     if current_hash == original_hash:
         images = client.images.list(name=image_name, all=True)
         if not images:
-            print("[bold]Downloading default image from Docker Hub please wait...[/bold]")
+            print("Downloading default image from Docker Hub, please wait...")
             client.images.pull("unaidedelf/openinterpreter-runtime-container", tag="latest")
     elif current_hash != previous_hash:
-        print("[bold]Dockerfile or requirements.txt has changed. Building container...[/bold]")
+        print("Dockerfile or requirements.txt has changed. Building container...")
 
-        # Build the Docker image
-        image, _ = client.images.build(
-            path=dockerfile_dir, dockerfile=dockerfile_name, tag=image_name + ":latest"
-        )
+        try:
+            result = subprocess.run([
+                "docker",
+                "build",
+                "-t",
+                f"{image_name}:latest",
+                dockerfile_dir,
+                ],
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
-        # Update the stored current hash
-        stored_hashes["current_hash"] = current_hash
-        with open(hash_file_path, "w", encoding="utf-8") as f:
-            json.dump(stored_hashes, f)
-    else:
-        print("[bold]Dockerfile and requirements.txt have not changed. No need to rebuild.[/bold]")
+            if result.returncode != 0:
+                # Extract the error message from Docker's output
+                error_message = result.stderr.strip().split("\n")[-1]
+                print("Docker Build Error: ", error_message)
+                print(
+                    "Building Docker image failed. Please review the error message above and resolve the issue."
+                )
+            else:
+                # Update the stored current hash
+                stored_hashes["current_hash"] = current_hash
+                with open(hash_file_path, "w", encoding="utf-8") as f:
+                    json.dump(stored_hashes, f)
+        except FileNotFoundError:
+            print("ERROR: The 'docker' command was not found on your system.")
+            print(
+                "Please ensure Docker Engine is installed and the 'docker' command is available in your PATH."
+            )
+            print(
+                "For information on Docker installation, visit: https://docs.docker.com/engine/install/"
+            )
+            print("If Docker is installed, try starting a new terminal session.")
 
 
 class DockerStreamWrapper:
@@ -139,28 +154,6 @@ class DockerStreamWrapper:
             self.parent = parent
             self._read_fd = read_fd
             self._buffer = ""
-
-        def readline(self, timeout=3):
-            """
-            Read a line from the container's output.
-
-            Args:
-                timeout (int): The maximum number of seconds to wait for a line to be available.
-
-            Returns:
-                str: The next line of output from the container, or an empty string if no line is available within the timeout.
-            """
-            while '\n' not in self._buffer:
-                ready_to_read, _, _ = select.select([self._read_fd], [], [], timeout)
-                if not ready_to_read:
-                    return ''
-                chunk = os.read(self._read_fd, 1024).decode('utf-8')
-                self._buffer += chunk
-
-            newline_pos = self._buffer.find('\n')
-            line = self._buffer[:newline_pos]
-            self._buffer = self._buffer[newline_pos + 1:]
-            return line
 
     def _listen(self):
         while not self._stop_event.is_set():
@@ -221,10 +214,9 @@ class DockerStreamWrapper:
     @staticmethod
     def flush():
         """
-        This method is not implemented as we use .sendall when sending data to the socket. 
+        This method is not implemented as we use .sendall when sending data to the socket.
         It is only here for the sake of being identical to the Subprocess.POPEN interface.
         """
-        pass
 
     def close(self):
         self._stop_event.set()
@@ -261,7 +253,7 @@ class DockerProcWrapper:
 
         if not os.path.exists(session_path):
             os.makedirs(session_path)
-            
+
         # Initialize container
         self.init_container()
 
@@ -274,6 +266,15 @@ class DockerProcWrapper:
         self.stdin.write(command + "\n")
 
     def init_container(self):
+        """
+        Initializes a Docker container for the interpreter session.
+
+        If a container with the session ID label already exists, it will be used.
+        Otherwise, a new container will be created with the specified image and host configuration.
+
+        Raises:
+            docker.errors.APIError: If an error occurs while interacting with the Docker API.
+        """
         self.container = None
         try:
             if containers := self.client.containers(
@@ -283,7 +284,7 @@ class DockerProcWrapper:
                 container_id = self.container.get("Id")
                 container_info = self.client.inspect_container(container_id)
                 if container_info.get("State", {}).get("Running") is False:
-                    print(container_info.get("State", {}))
+                    Print(container_info.get("State", {}))
                     self.client.start(container=container_id)
                     self.wait_for_container_start(container_id)
             else:
@@ -306,9 +307,8 @@ class DockerProcWrapper:
                 self.wait_for_container_start(self.container.get("Id"))
 
         except docker.errors.APIError as api_error:
-            print(f"An error occurred: {api_error}")
+            Print(f"An error occurred: {api_error}")
 
-        
     def init_exec_instance(self):
         """
         Initializes the execution instance for the container.
@@ -334,7 +334,7 @@ class DockerProcWrapper:
                 stdout=True,
                 stderr=True,
                 workdir="/mnt/data",
-                user="nobody",
+                user="docker",
                 tty=False,
             )["Id"]
             self.exec_socket = self.client.exec_start(
@@ -342,27 +342,27 @@ class DockerProcWrapper:
             )._sock
 
     def wait_for_container_start(self, container_id, timeout=30):
-            """
-            Waits for a container to start running.
+        """
+        Waits for a container to start running.
 
-            Args:
-                container_id (str): The ID of the container to wait for.
-                timeout (int, optional): The maximum amount of time to wait for the container to start, in seconds. Defaults to 30.
+        Args:
+            container_id (str): The ID of the container to wait for.
+            timeout (int, optional): The maximum amount of time to wait for the container to start, in seconds. Defaults to 30.
 
-            Raises:
-                TimeoutError: If the container does not start running within the specified timeout.
+        Raises:
+            TimeoutError: If the container does not start running within the specified timeout.
 
-            Returns:
-                bool: True if the container starts running within the specified timeout, False otherwise.
-            """
-            start_time = time.time()
-            while True:
-                container_info = self.client.inspect_container(container_id)
-                if container_info.get("State", {}).get("Running") is True:
-                    return True
-                if time.time() - start_time > timeout:
-                    raise TimeoutError("Container did not start within the specified timeout.")
-                time.sleep(1)
+        Returns:
+            bool: True if the container starts running within the specified timeout, False otherwise.
+        """
+        start_time = time.time()
+        while True:
+            container_info = self.client.inspect_container(container_id)
+            if container_info.get("State", {}).get("Running") is True:
+                return True
+            if time.time() - start_time > timeout:
+                raise TimeoutError("Container did not start within the specified timeout.")
+            time.sleep(1)
 
 
 def atexit_destroy(self):
