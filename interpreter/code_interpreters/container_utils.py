@@ -83,29 +83,29 @@ def build_docker_images(
         Print("Dockerfile or requirements.txt has changed. Building container...")
 
         try:
-            result = subprocess.run([
-                "docker",
-                "build",
-                "-t",
-                f"{image_name}:latest",
-                dockerfile_dir,
+            # Run the subprocess without capturing stdout and stderr
+            # This will allow Docker's output to be printed to the console in real-time
+            subprocess.run(
+                [
+                    "docker",
+                    "build",
+                    "-t",
+                    f"{image_name}:latest",
+                    dockerfile_dir,
                 ],
-                stderr=subprocess.PIPE,
+                check=True,  # This will raise a CalledProcessError if the command returns a non-zero exit code
                 text=True,
             )
 
-            if result.returncode != 0:
-                # Extract the error message from Docker's output
-                error_message = result.stderr.strip().split("\n")[-1]
-                Print("Docker Build Error: ", error_message)
-                Print(
-                    "Building Docker image failed. Please review the error message above and resolve the issue."
-                )
-            else:
-                # Update the stored current hash
-                stored_hashes["current_hash"] = current_hash
-                with open(hash_file_path, "w", encoding="utf-8") as f:
-                    json.dump(stored_hashes, f)
+            # Update the stored current hash
+            stored_hashes["current_hash"] = current_hash
+            with open(hash_file_path, "w", encoding="utf-8") as f:
+                json.dump(stored_hashes, f)
+
+        except subprocess.CalledProcessError:
+            # Suppress Docker's error messages and display your own error message
+            Print("Docker Build Error: Building Docker image failed. Please review the error message above and resolve the issue.")
+
         except FileNotFoundError:
             Print("ERROR: The 'docker' command was not found on your system.")
             Print(
@@ -154,6 +154,20 @@ class DockerStreamWrapper:
             self.parent = parent
             self._read_fd = read_fd
             self._buffer = ""
+        
+        ### CAUTION: For some reason when formatting the document, it deletes the readline method. i dont understand why, but it does so dont format this doc.
+        def readline(self, timeout=3):
+            while '\n' not in self._buffer:
+                ready_to_read, _, _ = select.select([self._read_fd], [], [], timeout)
+                if not ready_to_read:
+                    return ''
+                chunk = os.read(self._read_fd, 1024).decode('utf-8')
+                self._buffer += chunk
+
+            newline_pos = self._buffer.find('\n')
+            line = self._buffer[:newline_pos]
+            self._buffer = self._buffer[newline_pos + 1:]
+            return line
 
     def _listen(self):
         while not self._stop_event.is_set():
