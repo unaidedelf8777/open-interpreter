@@ -70,7 +70,7 @@ class SubprocessCodeInterpreter(BaseCodeInterpreter):
         Returns:
             None
         """
-
+        
         if self.contain:
             self.process = DockerProcWrapper(
                 self.start_cmd,  # splitting cmd causes problems with docker

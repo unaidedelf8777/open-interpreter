@@ -117,10 +117,13 @@ def respond(interpreter):
 
                 # Yield each line, also append it to last messages' output
                 interpreter.messages[-1]["output"] = ""
-                if not code.endswith("\n"):
-                    code += "\n"
+
+                code_to_run = code
+
+                if not code_to_run.endswith("\n"):
+                    code_to_run += "\n"
                     
-                for line in code_interpreter.run(code):
+                for line in code_interpreter.run(code_to_run):
                     yield line
                     if "output" in line:
                         output = interpreter.messages[-1]["output"]

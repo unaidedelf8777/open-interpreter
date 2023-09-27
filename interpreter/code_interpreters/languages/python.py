@@ -48,7 +48,7 @@ def preprocess_python(code):
     code = "\n".join(code_lines)
 
     # Add end command (we'll be listening for this so we know when it ends)
-    code += '\n\nprint("## end_of_execution ##")'
+    code += '\n\nprint("## end_of_execution ##")\n'
 
     return code
 

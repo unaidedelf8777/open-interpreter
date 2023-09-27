@@ -124,7 +124,7 @@ class Interpreter:
                 
             return
         
-        raise DisplayError("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
+        raise ValueError("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
 
     def _respond(self):
         yield from respond(self)
