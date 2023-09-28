@@ -1,6 +1,13 @@
-from ..utils.display_markdown_message import display_markdown_message
 import json
 import os
+import appdirs
+from rich import print
+
+from ..utils.display_markdown_message import display_markdown_message
+from ..code_interpreters.container_utils.download_file import download_file_from_container
+from ..code_interpreters.container_utils.upload_file import copy_file_to_container
+from ..code_interpreters.create_code_interpreter import SESSION_IDS_BY_OBJECT
+
 
 def handle_undo(self, arguments):
     # Removes all messages after the most recent user entry (and the entry itself).
@@ -100,6 +107,53 @@ def handle_load_message(self, json_path):
 
     display_markdown_message(f"> messages json loaded from {os.path.abspath(json_path)}")
 
+def handle_container_upload(self, *args):
+   
+   if self.use_containers:
+    for filepath in args:
+        if os.path.exists(filepath):
+          container_id = SESSION_IDS_BY_OBJECT.get(id(self))
+          if container_id is not None:
+            copy_file_to_container(container_id=container_id, local_file_path=filepath, file_path_in_container="/mnt/data") # /mnt/data is default workdir for container
+          else:
+             print("[BOLD]No container found to upload to. \n Please run any code to start one. this will be fixed in a later update[/BOLD]")
+        else:
+          continue
+   else:
+      print("[BOLD]File uploads are only used when using containerized code execution. ignoring command.[/BOLD]")
+  
+
+
+def handle_container_download(self, *args):
+    if self.use_containers:
+        # Check if any file paths are specified
+        if not args:
+            print("[BOLD]Please specify the file paths to download from the container.[/BOLD]")
+            return
+
+        container_id = SESSION_IDS_BY_OBJECT.get(id(self))
+        if container_id is not None:
+            for file_path_in_container in args:
+                # Constructing the local file path
+                local_dir = appdirs.user_data_dir(appname="Open Interpreter")
+                local_file_path = os.path.join(local_dir, os.path.basename(file_path_in_container))
+                
+                # Checking if the file exists in the container, if not continue to the next file
+                # You might need to implement a way to check if the file exists in the container
+                if not self.file_exists_in_container(container_id, file_path_in_container):
+                    print(f"[BOLD]File {file_path_in_container} does not exist in the container.[/BOLD]")
+                    continue
+                
+                # Copying the file from the container to the local file path
+                download_file_from_container(container_id=container_id, file_path_in_container=file_path_in_container, local_dir=local_file_path)
+                print(f"[BOLD]File {file_path_in_container} downloaded to {local_file_path}.[/BOLD]")
+        else:
+            print("[BOLD]No container found to download from. \n Please run any code to start one. This will be fixed in a later update[/BOLD]")
+    else:
+        print("[BOLD]File downloads are only used when using containerized code execution. Ignoring command.[/BOLD]")
+
+
+
 def handle_magic_command(self, user_input):
     # split the command into the command and the arguments, by the first whitespace
     switch = {
@@ -109,6 +163,8 @@ def handle_magic_command(self, user_input):
       "save_message": handle_save_message,
       "load_message": handle_load_message,
       "undo": handle_undo,
+      "upload": handle_container_upload,
+      "download": handle_container_download,
     }
 
     user_input = user_input[1:].strip()  # Capture the part after the `%`

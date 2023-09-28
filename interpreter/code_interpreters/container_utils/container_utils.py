@@ -313,6 +313,3 @@ def atexit_destroy(self):
     shutil.rmtree(self.session_path)
     self.client.stop(self.container.get("Id"))
     self.client.remove_container(self.container.get("Id"))
-
-
-
