@@ -15,7 +15,7 @@ from datetime import datetime
 import json
 from ..utils.check_for_update import check_for_update
 from ..utils.display_markdown_message import display_markdown_message
-from ..code_interpreters.container_utils import build_docker_images
+from ..code_interpreters.container_utils.container_utils import build_docker_images
 
 class Interpreter:
     def cli(self):
@@ -54,6 +54,7 @@ class Interpreter:
 
         # Container options
         self.use_containers = False
+        
 
         # Check for update
         if not self.local:

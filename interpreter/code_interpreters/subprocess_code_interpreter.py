@@ -7,7 +7,7 @@ import traceback
 
 import appdirs
 from .base_code_interpreter import BaseCodeInterpreter
-from .container_utils import DockerProcWrapper
+from .container_utils.container_utils import DockerProcWrapper
 
 
 class SubprocessCodeInterpreter(BaseCodeInterpreter):

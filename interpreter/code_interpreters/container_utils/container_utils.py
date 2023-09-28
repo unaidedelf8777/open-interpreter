@@ -30,7 +30,8 @@ def get_files_hash(*file_paths):
 
 
 def build_docker_images(
-    dockerfile_dir=os.path.join(os.path.abspath(os.path.dirname(__file__)), "dockerfiles"),
+    dockerfile_dir = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "dockerfiles")
+,
 ):
     """
     Builds a Docker image for the Open Interpreter runtime container if needed.
@@ -208,7 +209,6 @@ class DockerStreamWrapper:
         pass
 
     def close(self):
-        print("#### CLOSE METHOD HIT")
         self._stop_event.set()
         self._thread.join()
         os.close(self._stdout_r)
@@ -223,7 +223,6 @@ class DockerProcWrapper:
         self.client = docker.APIClient()
         self.image_name = "openinterpreter-runtime-container:latest"
         self.session_path = session_path
-        self.id = os.path.basename(session_path)
         self.exec_id = None
         self.exec_socket = None
         atexit.register(atexit_destroy, self)
@@ -248,13 +247,12 @@ class DockerProcWrapper:
         self.container = None
         try:
             containers = self.client.containers(
-                filters={"label": f"session_id={self.id}"}, all=True)
+                filters={"label": f"session_id={os.path.basename(self.session_path)}"}, all=True)
             if containers:
                 self.container = containers[0]
                 container_id = self.container.get('Id')
                 container_info = self.client.inspect_container(container_id)
                 if container_info.get('State', {}).get('Running') is False:
-                    print(container_info.get('State', {}))
                     self.client.start(container=container_id)
                     self.wait_for_container_start(container_id)
             else:
@@ -266,9 +264,9 @@ class DockerProcWrapper:
                     image=self.image_name,
                     detach=True,
                     command="/bin/bash -i",
-                    labels={'session_id': self.id},
+                    labels={'session_id': os.path.basename(self.session_path)},
                     host_config=host_config,
-                    user="nobody",
+                    user="docker",
                     stdin_open=True,
                     tty=False
                 )
