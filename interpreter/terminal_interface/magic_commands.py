@@ -209,4 +209,4 @@ def handle_magic_command(self, user_input):
     command = user_input.split(" ")[0]
     arguments = user_input[len(command):].strip()
     action = switch.get(command, default_handle)  # Get the function from the dictionary, or default_handle if not found
-    action(self, arguments) # Execute the function
+    action(self, arguments) # Execute the function.
