@@ -2,6 +2,9 @@ from ..subprocess_code_interpreter import SubprocessCodeInterpreter
 import re
 
 class JavaScript(SubprocessCodeInterpreter):
+    file_extension = "js"
+    proper_name = "JavaScript"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.start_cmd = "node -i"

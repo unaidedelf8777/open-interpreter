@@ -90,8 +90,7 @@ def handle_reset(self, arguments):
 
 def default_handle(self, arguments):
     display_markdown_message("> Unknown command")
-    handle_help(self, arguments)
-
+    self.handle_help(arguments)
 
 def handle_save_message(self, json_path):
     if json_path == "":
@@ -111,7 +110,7 @@ def handle_load_message(self, json_path):
     if not json_path.endswith(".json"):
         json_path += ".json"
     with open(json_path, 'r') as f:
-        self.load(json.load(f))
+      self.load(json.load(f))
 
     display_markdown_message(
         f"> messages json loaded from {os.path.abspath(json_path)}")
@@ -209,6 +208,5 @@ def handle_magic_command(self, user_input):
     user_input = user_input[1:].strip()  # Capture the part after the `%`
     command = user_input.split(" ")[0]
     arguments = user_input[len(command):].strip()
-    # Get the function from the dictionary, or default_handle if not found
-    action = switch.get(command, default_handle)
-    action(self, arguments)  # Execute the function
+    action = switch.get(command, default_handle)  # Get the function from the dictionary, or default_handle if not found
+    action(self, arguments) # Execute the function

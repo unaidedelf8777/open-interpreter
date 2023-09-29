@@ -31,6 +31,7 @@ class Interpreter:
         self.auto_run = False
         self.debug_mode = False
         self.max_output = 2000
+        self.safe_mode = "off"
 
         # Conversation history
         self.conversation_history = True
@@ -60,7 +61,7 @@ class Interpreter:
         if not self.local:
             # This should actually be pushed into the utility
             if check_for_update():
-                display_markdown_message("> **A new version of Open Interpreter is available.**\n>Please run: `pip install --upgrade open-interpreter`\n\n---")
+                display_markdown_message("> **A new version of Open Interpreter is available.**\n>Please run: `pip install --upgrade open-interpreter`\n\n---") # type: ignore
         
 
 
@@ -98,16 +99,17 @@ class Interpreter:
             return
         
         # One-off message
-        if message:
+        if message or message == "":
+            if message == "":
+                message = "No entry from user - please suggest something to enter"
             self.messages.append({"role": "user", "message": message})
-            
             yield from self._respond()
 
-            # Save conversation
+            # Save conversation if we've turned conversation_history on
             if self.conversation_history:
 
                 # If it's the first message, set the conversation name
-                if len([m for m in self.messages if m["role"] == "user"]) == 1:
+                if not self.conversation_filename:
 
                     first_few_words = "_".join(self.messages[0]["message"][:25].split(" ")[:-1])
                     for char in "<>:\"/\\|?*!": # Invalid characters for filenames
@@ -120,12 +122,11 @@ class Interpreter:
                 if not os.path.exists(self.conversation_history_path):
                     os.makedirs(self.conversation_history_path)
                 # Write or overwrite the file
-                with open(os.path.join(self.conversation_history_path, self.conversation_filename), 'w', encoding="utf-8") as f:
+                with open(os.path.join(self.conversation_history_path, self.conversation_filename), 'w') as f:
                     json.dump(self.messages, f)
                 
             return
-        
-        raise ValueError("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
+        raise Exception("`interpreter.chat()` requires a display. Set `display=True` or pass a message into `interpreter.chat(message)`.")
 
     def _respond(self):
         yield from respond(self)
@@ -136,3 +137,4 @@ class Interpreter:
         for code_interpreter in self._code_interpreters.values():
             code_interpreter.terminate()
         self._code_interpreters = {}
+        
