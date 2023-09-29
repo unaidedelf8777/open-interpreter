@@ -1,7 +1,6 @@
 import json
 import os
 import appdirs
-from rich import print
 import docker
 
 from ..utils.display_markdown_message import display_markdown_message
@@ -141,7 +140,7 @@ def handle_container_upload(self, *args):
                     copy_file_to_container(
                         container_id=container_id, local_path=filepath, path_in_container=f"/mnt/data/{os.path.basename(filepath)}"
                     )
-                    success_message = f"File [underlined]{filepath}[/underlined] successfully uploaded to container in dir `/mnt/data`."
+                    success_message = f"File [{filepath}](#) successfully uploaded to container in dir `/mnt/data`."
                     display_markdown_message(success_message)
                 else:
                     no_container_message = (
@@ -150,11 +149,11 @@ def handle_container_upload(self, *args):
                     )
                     display_markdown_message(f"**'{no_container_message}'**")
             else:
-                file_not_found_message = f"File [red]`{filepath}`[/red] does not exist."
+                file_not_found_message = f"File `{filepath}` does not exist."
                 display_markdown_message(file_not_found_message)
     else:
         ignore_command_message = "File uploads are only used when using containerized code execution. Ignoring command."
-        display_markdown_message(f"[red]{ignore_command_message}[/red]")
+        display_markdown_message(f"**{ignore_command_message}**")
         
 def handle_container_download(self, *args):
     if self.use_containers:
