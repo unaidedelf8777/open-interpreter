@@ -126,11 +126,13 @@ def handle_container_upload(self,type=None, *args):
         try:
             from PyQt5.QtWidgets import QApplication
             app = QApplication([])
+            del app
+            return True
         except Exception as e:
             print(f"An error occurred: {str(e)}")
             return False
-        return True
-
+        
+    args = list(args)
     if self.use_containers:
         try:
             client = docker.APIClient()
@@ -151,8 +153,12 @@ def handle_container_upload(self,type=None, *args):
                     if type is not None:
                         path = fd.get_path(type=type)
                     else:
-                        path = fd.get_path()
-                    args.append(path)
+                        path = fd.get_path(type=None)
+                    if path is not None: # if none, they exited
+                        
+                        args.append(path)
+                    else: # We shall now exit on them out of spite
+                        return
                 except ImportError as e:
                     Print(f"Internal import error {e}")
                     return    

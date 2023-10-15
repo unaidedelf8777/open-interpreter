@@ -40,7 +40,7 @@ class FileDialog:
             path = QFileDialog.getExistingDirectory(None, "Open Folder",
                                                     "", options=options)
         else:
-            raise ValueError("Invalid type. Expected 'file', 'folder', or None.")
+            path = self.get_path(type=None) # this or val err, may aswell explicitly pass none.
 
         return path
 
